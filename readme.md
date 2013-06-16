@@ -33,4 +33,4 @@ Building with PyInstaller
 -------------------------
 I use the following command:
 
-    ```python -O /path/to/pyinstaller-script.py --onefile --upx-dir=/path/to/upx/ scenic.spec```
+    python -O /path/to/pyinstaller-script.py --onefile --upx-dir=/path/to/upx/ scenic.spec
