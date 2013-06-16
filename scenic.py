@@ -357,7 +357,7 @@ class Analyser(object):
         if not os.path.exists(os.path.join(self.picpath, "icons")):
             shutil.copytree(os.path.join(self.rpath, "icons"),
                             os.path.join(self.picpath, "icons"))
-        for js in ['jquery-1.10.1.min.js', 'jquery-migrate-1.2.1.min.js']:
+        for js in ['jquery-1.10.1.min.js']:
             if not os.path.exists(os.path.join(self.picpath, js)):
                 shutil.copy2(os.path.join(self.rpath, js),
                              os.path.join(self.picpath, js))
