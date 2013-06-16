@@ -14,6 +14,9 @@ import shutil
 import webbrowser
 from collections import defaultdict
 from math import ceil
+from subprocess import check_output
+
+# GUI
 import Tkinter
 import tkMessageBox
 import tkFileDialog
@@ -30,7 +33,12 @@ from color import get_colour_name, most_frequent_colours, kelly_colours
 from xmlgen import make_xml
 
 
-app_name = "Scenic: Movie Scene Detection and Analysis"
+try:
+    version_string = " v%s" % check_output(['git', 'describe'])
+except:
+    version_string = ""
+
+app_name = "Scenic%s: Movie Scene Detection and Analysis" % version_string
 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
 ctypes.windll.shell32.SHGetFolderPathW(0, 5, 0, 0, buf)
 my_documents = buf.value
@@ -401,7 +409,7 @@ class Analyser(object):
         xml = make_xml(vidfn, self.img_data)
         xmlfile = os.path.join(self.vidroot, "%s.xml" % self.vidname)
         with open(xmlfile, "w") as f:
-            f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
+            f.write('<?xml version_string="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
             xml.write(f)
 
     def run(self):
