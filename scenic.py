@@ -1,17 +1,20 @@
 """Scenic.
 
 Usage:
-  scenic.py
-  scenic.py -f FILE
-  scenic.py -b DIR
+  scenic.py [options]
+  scenic.py -f FILE [options]
+  scenic.py -b DIR [options]
   scenic.py (-h | --help)
   scenic.py --version
 
 Options:
   -f FILE       Analyse a specific file.
   -b DIR        Analyse all valid files in a folder.
+  --silent      Silent mode.
   -h --help     Show this screen.
   --version     Show version.
+  --no-popups   Do not open generated html in the web browser
+  --no-xml      Do not generate the FCP .xml file
 
 """
 import sys
@@ -135,7 +138,7 @@ class Analyser(object):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
-        self.local = local
+        self.local = local  # When local is True, dialogs are supressed.
         self.rpath = os.path.realpath(os.path.join(basedir, "resources"))
         self.vidfn = os.path.split(vidpath)[1]
         self.vidname = os.path.splitext(self.vidfn)[0]
@@ -449,15 +452,17 @@ class Analyser(object):
             f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
             xml.write(f)
 
-    def run(self):
+    def run(self, html=True, xml=True, popups=True):
         if not (self.scenes and self.vectors):
             self.scene_detection()
         if not self.img_data:
             self.phase_two()
         if self.img_data:
-            self.output_html()
-            self.output_xml()
-        if os.path.exists(self.htmlpath):
+            if html:
+                self.output_html()
+            if xml:
+                self.output_xml()
+        if os.path.exists(self.htmlpath) and popups:
             webbrowser.open(self.htmlpath, new=2)
 
 if __name__ == "__main__":
@@ -468,8 +473,20 @@ if __name__ == "__main__":
 
     arguments = docopt(__doc__, version='Scenic %s' % version_string)
 
+    silent = arguments.get("--silent")
+    if silent:
+        # Consume all messages
+        class Consume(object):
+            def write(self):
+                pass
+        sys.stdout = Consume()
+
     vidfn = arguments.get("-f")
     viddir = arguments.get("-b")
+    run_kwargs = {
+        "xml": not arguments.get("--no-xml"),
+        "popups": not arguments.get("--no-popups")
+    }
 
     if vidfn or viddir:
         vids = []
@@ -482,12 +499,12 @@ if __name__ == "__main__":
         for vid in vids:
             if not __debug__:
                 try:
-                    Analyser(vid, local=True).run()
+                    Analyser(vid, local=True).run(**run_kwargs)
                 except Exception as e:
                     print "Error while analysing %s: %s" % (vid, e)
                     continue
             else:
-                Analyser(vid, local=True).run()
+                Analyser(vid, local=True).run(**run_kwargs)
     else:
         # define options for opening a vid file
         foptions = {}
@@ -501,8 +518,8 @@ if __name__ == "__main__":
 
         if not __debug__:
             try:
-                anal = Analyser(vidfn)
-                anal.run()
+                anal = Analyser(vidfn, local=silent)
+                anal.run(**run_kwargs)
             except Exception as e:
                 tkMessageBox.showerror(
                     " Error",
@@ -510,5 +527,5 @@ if __name__ == "__main__":
                      "but it left you this message:\n\n%s") % e
                 )
         else:
-            anal = Analyser(vidfn)
-            anal.run()
+            anal = Analyser(vidfn, local=silent)
+            anal.run(**run_kwargs)
