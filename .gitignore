@@ -1,0 +1,8 @@
+*.pyo
+*.pyc
+*.dll
+*.exe
+*.avsi
+*.js
+/build
+/dist

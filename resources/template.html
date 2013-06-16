@@ -1,0 +1,214 @@
+<html>
+    <head>
+        <style>
+        /*! normalize.css v1.0.0 | MIT License | git.io/normalize */
+        article,aside,details,figcaption,figure,footer,header,hgroup,nav,section,summary{display:block}audio,canvas,video{display:inline-block;*display:inline;*zoom:1}audio:not([controls]){display:none;height:0}[hidden]{display:none}html{font-size:100%;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}html,button,input,select,textarea{font-family:sans-serif}body{margin:0}a:focus{outline:thin dotted}a:active,a:hover{outline:0}h1{font-size:2em;margin:.67em 0}h2{font-size:1.5em;margin:.83em 0}h3{font-size:1.17em;margin:1em 0}h4{font-size:1em;margin:1.33em 0}h5{font-size:.83em;margin:1.67em 0}h6{font-size:.75em;margin:2.33em 0}abbr[title]{border-bottom:1px dotted}b,strong{font-weight:bold}blockquote{margin:1em 40px}dfn{font-style:italic}mark{background:#ff0;color:#000}p,pre{margin:1em 0}code,kbd,pre,samp{font-family:monospace,serif;_font-family:'courier new',monospace;font-size:1em}pre{white-space:pre;white-space:pre-wrap;word-wrap:break-word}q{quotes:none}q:before,q:after{content:'';content:none}small{font-size:75%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sup{top:-0.5em}sub{bottom:-0.25em}dl,menu,ol,ul{margin:1em 0}dd{margin:0 0 0 40px}menu,ol,ul{padding:0 0 0 40px}nav ul,nav ol{list-style:none;list-style-image:none}img{border:0;-ms-interpolation-mode:bicubic}svg:not(:root){overflow:hidden}figure{margin:0}form{margin:0}fieldset{border:1px solid #c0c0c0;margin:0 2px;padding:.35em .625em .75em}legend{border:0;padding:0;white-space:normal;*margin-left:-7px}button,input,select,textarea{font-size:100%;margin:0;vertical-align:baseline;*vertical-align:middle}button,input{line-height:normal}button,html input[type="button"],input[type="reset"],input[type="submit"]{-webkit-appearance:button;cursor:pointer;*overflow:visible}button[disabled],input[disabled]{cursor:default}input[type="checkbox"],input[type="radio"]{box-sizing:border-box;padding:0;*height:13px;*width:13px}input[type="search"]{-webkit-appearance:textfield;-moz-box-sizing:content-box;-webkit-box-sizing:content-box;box-sizing:content-box}input[type="search"]::-webkit-search-cancel-button,input[type="search"]::-webkit-search-decoration{-webkit-appearance:none}button::-moz-focus-inner,input::-moz-focus-inner{border:0;padding:0}textarea{overflow:auto;vertical-align:top}table{border-collapse:collapse;border-spacing:0}
+        
+        head, body {
+            overflow-y: scroll;
+        }
+
+        #toolbar {
+            position:fixed;
+            top: 0px;
+            right: 0px;
+            width: 84px;
+            background-color: rgba(255, 255, 255, 0.5);
+            margin: 0px;
+            padding: 0px;
+        }
+
+        .filter, .unfilter {
+            display: inline-block;
+            float: left;
+            width: 32px;
+            height: 32px;
+        }
+
+        .unfilter {
+            margin: 5px;
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+
+        .unselected {
+            border: 2px solid grey;
+            margin: 3px;
+        }
+
+        .selected {
+            border: 3px dotted red;
+            margin: 2px;
+        }
+
+        .menutext {
+            display: block;
+            margin: 5px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        h5 {
+            margin: 0.5em 0;
+        }
+
+        </style>
+    </head>
+    <body>
+        <menu id="toolbar">
+            <div class=".menutext"><h5>Filters</h5></div>
+            {% for name, colour, exists in k_colours %}
+                {% if exists %}
+                    <a href="#">
+                        <li title="{{name}}" class="filter unselected cfilter tooltip" id="{{name}}" style="background-color: {{colour}};"></li>
+                    </a>
+                {% else %}
+                    <li class="unfilter"></li>
+                {% endif %}
+            {% endfor %}
+            {% for vector in all_vectors %}
+                {% if vector in used_vectors %}
+                    <a href="#">
+                        <li id="{{vector}}" title="{{icon_key[vector]}}" class="filter unselected tooltip mfilter" style="background-image: url('{{dir}}/icons/{{vector}}.png');"></li>
+                    </a>
+                {% else %}
+                    <li class="unfilter"></li>
+                {% endif %}
+            {% endfor %}
+            <a href="#">
+                <li id="showall" title="reset" class="filter unselected tooltip" style="background-image: url('{{dir}}/icons/reset.png');"></li>
+            </a>
+            <div id="imgcount" class=".menutext"></div>
+        </menu>
+        <div>
+            <h2>{{vidfn}}</h2>
+            {% for img in img_data %}
+                <div class="image {%for c in img.colours%} {{c}}{% endfor %}{% for v in img.vectors %} {{v}}{% endfor %}" title="{{img.title}}" style="background-image: url('{{img.filename}}'); width: {{img.size.0}}px; height: {{img.size.1}}px; margin: 5px; display: inline-block;"></div>
+            {% endfor %}
+        </div>
+        <script src="{{dir}}/jquery-1.10.1.min.js"></script>
+        <script>
+            $(document).ready(function () {
+
+                var anim = setInterval(function () {
+                    $(".image").css("background-position-y", "-=240px");
+                }, 500);
+
+                var count_img = function() {
+                    $("#imgcount").text($(".image:visible").length.toString() + " found");
+                }
+                count_img();
+                // $(".filter").addClass('unselected');
+                // $(".filter").removeClass('selected');
+                var cfilters = [];
+                var mfilter = false;
+                var ffilter = false;
+
+                $("#showall").click(function() {
+                    cfilters = [];
+                    mfilter = false;
+                    ffilter = false;
+                    $(".filter").addClass('unselected');
+                    $(".filter").removeClass('selected');
+                    return filter_images();
+                });
+
+                var filter_images = function() {
+                    $(".image").hide();
+                    var selector = ".image";
+                    if (mfilter) {
+                        selector += mfilter;
+                    };
+                    if (ffilter) {
+                        selector += ffilter;
+                    };
+                    if (cfilters.length == 0 && !mfilter && !ffilter) {
+                        $(".image").show();
+                        return count_img();
+                    }
+                    if (cfilters.length == 0) {
+                        $(selector).show();
+                    }
+                    for (var i = cfilters.length - 1; i >= 0; i--) {
+                        $(selector).filter(cfilters[i]).show();
+                    };
+                    count_img();
+                };
+
+                var toggle_motion = function(store, findme) {
+                    var id = findme.replace(".", "#");
+                    if (store == findme) {
+                        store = false;
+                        $(id).addClass('unselected');
+                        $(id).removeClass('selected');
+                    } else {
+                        store = findme;
+                        $(id).addClass('selected');
+                        $(id).removeClass('unselected');
+                        if (findme != ".m9_face") {
+                            $(".mfilter").each(function() {
+                                if ("." + $(this).attr('id').toString() != findme) {
+                                    if ("." + $(this).attr('id').toString() != ".m9_face") {
+                                        $(this).addClass('unselected');
+                                        $(this).removeClass('selected');
+                                    };
+                                }
+                            });
+                        }
+                    };
+                    return store
+                }
+
+                $(".cfilter").click(function() {
+                    var findme = "." + $(this).attr('id').toString();
+                    var index = jQuery.inArray(findme, cfilters);
+                    if (index > -1) {
+                        $(this).addClass('unselected');
+                        $(this).removeClass('selected');
+                        cfilters.splice(index, 1);
+                    } else {
+                        $(this).addClass('selected');
+                        $(this).removeClass('unselected');
+                        cfilters.push(findme);
+                    };
+                    filter_images();
+                });
+
+                $(".mfilter").click(function() {
+                    var findme = "." + $(this).attr('id').toString();
+                    if (mfilter == findme) {
+                        mfilter = false;
+                        $(this).addClass('unselected');
+                        $(this).removeClass('selected');
+                    } else {
+                        if (mfilter) {
+                            $(mfilter.replace(".", "#")).addClass('unselected');
+                            $(mfilter.replace(".", "#")).removeClass('selected');
+                        };
+                        $(this).addClass('selected');
+                        $(this).removeClass('unselected');
+                        mfilter = findme;
+                    };
+                    filter_images();
+                });
+
+                $(".ffilter").click(function() {
+                    var findme = "." + $(this).attr('id').toString();
+                    if (ffilter == findme) {
+                        ffilter = false;
+                        $(this).addClass('unselected');
+                        $(this).removeClass('selected');
+                    } else {
+                        if (ffilter) {
+                            $(ffilter.replace(".", "#")).addClass('unselected');
+                            $(ffilter.replace(".", "#")).removeClass('selected');
+                        };
+                        $(this).addClass('selected');
+                        $(this).removeClass('unselected');
+                        ffilter = findme;
+                    };
+                    filter_images();
+                });
+            });
+        </script>
+    </body>
+</html>
