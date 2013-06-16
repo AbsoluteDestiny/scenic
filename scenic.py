@@ -409,7 +409,7 @@ class Analyser(object):
         xml = make_xml(vidfn, self.img_data)
         xmlfile = os.path.join(self.vidroot, "%s.xml" % self.vidname)
         with open(xmlfile, "w") as f:
-            f.write('<?xml version_string="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
+            f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
             xml.write(f)
 
     def run(self):
