@@ -1,18 +1,19 @@
-"""Scenic. Scene colour and motion analysis for video files.
+"""Scenic: Scene colour and motion analysis for video files.
 Pass in a file or a directory of files for analysis.
 
 Usage:
-  scenic.py [options]
-  scenic.py <FILE_OR_DIRECTORY> [options]
+  scenic.py [<PATH>] [--skip | --overwrite] [options]
   scenic.py (-h | --help)
   scenic.py --version
 
 Options:
-  --silent      Silent mode.
-  -h --help     Show this screen.
-  --version     Show version.
+  --skip        Skip file if .html file exists.
+  --overwrite   Always overwrite any existing output files.
+  --silent      Silent mode. Use --skip or --overwrite to surpress dialogs.
   --no-popups   Do not open generated html in the web browser
   --no-xml      Do not generate the FCP .xml file
+  --version     Show version.
+  -h --help     Show this screen.
 
 """
 import sys
@@ -31,6 +32,7 @@ import ctypes.wintypes
 import shutil
 import webbrowser
 from collections import defaultdict
+from functools import wraps
 from math import ceil
 from subprocess import check_output
 
@@ -53,10 +55,12 @@ from color import get_colour_name, most_frequent_colours, kelly_colours
 from xmlgen import make_xml
 
 
+version_string = ""
 try:
-    version_string = " v%s" % check_output(['git', 'describe'])
+    if not getattr(sys, 'frozen', False):
+        version_string = " v%s" % check_output(['git', 'describe'])
 except:
-    version_string = ""
+    pass
 
 app_name = "Scenic%s: Movie Scene Detection and Analysis" % version_string
 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
@@ -109,6 +113,14 @@ def get_numpy(avs, frame):
         return arrnew
 
 
+def is_ready(func):
+    @wraps(func)
+    def wrapper(instance, *args, **kwds):
+        if instance.ready:
+            return func(instance, *args, **kwds)
+    return wrapper
+
+
 class AvisynthHelper(object):
     """Avisynth helper class. Adds with support."""
     def __init__(self, script):
@@ -132,11 +144,10 @@ class Analyser(object):
               a.run()
        """
 
-    def __init__(self, vidpath, local=False):
+    def __init__(self, vidpath, skip=False, overwrite=False):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
-        self.local = local  # When local is True, dialogs are supressed.
         self.rpath = os.path.realpath(os.path.join(basedir, "resources"))
         self.vidfn = os.path.split(vidpath)[1]
         self.vidname = os.path.splitext(self.vidfn)[0]
@@ -156,18 +167,23 @@ class Analyser(object):
         self.all_colours = set()  # A set of all possible colours
         self.img_data = []  # A list of data for html/xml generation
 
+        self.ready = True  # Can be processed
+
         if not os.path.exists(self.picpath):
             os.mkdir(self.picpath)
-        if os.path.exists(self.htmlpath) and not self.local:
+        if os.path.exists(self.htmlpath):
             msg = ("Scene indexes for this video (%s) alredy exist."
                    "Continuing will overwrite them."
                    "Do you want to continue?") % self.vidfn
             title = "Existing files detected!"
-            if tkMessageBox.askyesno(title, msg):
-                pass
+            if skip:
+                self.ready = False
+                print "%s is already processed, skipping." % self.vidfn
+            elif overwrite or tkMessageBox.askyesno(title, msg):
+                return
             else:
-                print "Processing cancelled."
-                sys.exit(0)
+                self.ready = False
+                print "Processing cancelled for %s." % self.vidfn
 
     def open_video(self):
         """Find a compatible Avisynth import method for the given file.
@@ -201,6 +217,7 @@ class Analyser(object):
                         "fps_den": int(clip.FramerateDenominator),
                     }
 
+    @is_ready
     def scene_detection(self):
         """Use SCXvid to generate a list of scene keyframes.
         Simlutaneously, using MDepan to log the motion vectors."""
@@ -249,7 +266,22 @@ class Analyser(object):
         return self.scenes, self.vectors
 
     def read_vectors(self, scenes, vdata):
-        """Analyse MDepan's output per scene"""
+        """Analyse MDepan's output per scene.
+
+        Depan logs follow the deshaker format with each line printing:
+
+        Frame number - Frame number of the source video. For interlaced video,
+                       the frame number will have an 'A' or 'B' appended,
+                       depending on the field.
+        Pan X - The number of horizontal panning pixels between
+                (the middle line of) the previous frame and current frame.
+        Pan Y - The number of vertical panning pixels between
+                (the middle line of) the previous frame and current frame.
+        Rotation - The number of degrees of rotation between
+                (the middle line of) the previous frame and current frame.
+        Zoom - The zoom factor between (the middle line of) the previous
+               frame and current frame.
+        """
         all_movements = set()
         scene_vect = defaultdict(list)
         for start, end in scenes:
@@ -307,6 +339,7 @@ class Analyser(object):
                                         time % 60,
                                         100 * (time % 1))
 
+    @is_ready
     def phase_two(self):
         """This phase simlutaneously does many things:
         1. Find the most common colours in the scene
@@ -391,6 +424,7 @@ class Analyser(object):
             })
         return data
 
+    @is_ready
     def output_html(self):
         """Render an html file using jinja2 based on the scene information."""
         if not self.img_data:
@@ -439,6 +473,7 @@ class Analyser(object):
             }
             f.write(template.render(options))
 
+    @is_ready
     def output_xml(self):
         """Produce a Final Cut Pro .xml file for importing into programs.
         Only tested with Premiere CS6 currently."""
@@ -450,6 +485,7 @@ class Analyser(object):
             f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
             xml.write(f)
 
+    @is_ready
     def run(self, html=True, xml=True, popups=True):
         if not (self.scenes and self.vectors):
             self.scene_detection()
@@ -463,9 +499,41 @@ class Analyser(object):
         if os.path.exists(self.htmlpath) and popups:
             webbrowser.open(self.htmlpath, new=2)
 
-if __name__ == "__main__":
+
+def get_valid_files(path):
+    files = []
+
+    if not os.path.isdir(path):
+        return files
+
+    for fn in os.listdir(path):
+        if os.path.splitext(fn)[-1] in valid_filetypes:
+            files.append(os.path.join(path, fn))
+
+    if not files:
+        raise Exception("%s does not contain any valid vid fies." % path)
+    return files
+
+
+def ask_for_file():
+    # Present a file chooser dialog
+    foptions = {}
+    foptions['initialdir'] = my_documents
+    foptions['title'] = 'Choose a video file to analyse...'
+    foptions['filetypes'] = [('all files', '.*')]
+    for ext in valid_filetypes:
+        match = ('video files', "*%s" % ext)
+        foptions['filetypes'].append(match)
+    return tkFileDialog.askopenfilename(**foptions)
+
+
+def main():
+    """Handle default processing for standalone and command-line usage."""
+    # Surpress TKinter main window
     root = Tkinter.Tk()
     root.withdraw()
+
+    #Set the icon for dialogs
     icon = os.path.realpath(os.path.join(basedir, "resources", "scenic.ico"))
     root.wm_iconbitmap(icon)
 
@@ -479,50 +547,49 @@ if __name__ == "__main__":
                 pass
         sys.stdout = Consume()
 
-    vpath = arguments.get("<FILE_OR_DIRECTORY>")
+    # Get the vid or vids to process
+    vpath = arguments.get("<PATH>") or ask_for_file()
+
+    # Set up options for running the analyser
+    analyser_kwargs = {
+        "skip": arguments.get("--skip"),
+        "overwrite": arguments.get("--overwrite"),
+    }
     run_kwargs = {
         "xml": not arguments.get("--no-xml"),
-        "popups": not arguments.get("--no-popups")
+        "popups": not arguments.get("--no-popups"),
     }
 
-    if vpath:
-        vids = []
-        if os.path.isdir(vpath):
-            for fn in os.listdir(vpath):
-                if os.path.splitext(fn)[-1] in valid_filetypes:
-                    vids.append(os.path.join(vpath, fn))
-        else:
-            vids = [vpath]
-        for vid in vids:
-            if not __debug__:
-                try:
-                    Analyser(vid, local=True).run(**run_kwargs)
-                except Exception as e:
-                    print "Error while analysing %s: %s" % (vid, e)
-                    continue
-            else:
-                Analyser(vid, local=True).run(**run_kwargs)
+    if os.path.isdir(vpath):
+        vids = get_valid_files(vpath)
+    elif not os.path.isfile(vpath):
+        raise Exception("%s is not a valid path or video file." % vpath)
     else:
-        # define options for opening a vid file
-        foptions = {}
-        foptions['filetypes'] = [('all files', '.*')]
-        for ext in valid_filetypes:
-            match = ('video files', "*%s" % ext)
-            foptions['filetypes'].append(match)
-        foptions['title'] = 'Choose a video file to analyse...'
-        foptions['initialdir'] = my_documents
-        vidfn = tkFileDialog.askopenfilename(**foptions)
+        vids = [vpath]
 
+    for i, vid in enumerate(vids, 1):
+        if len(vids) > 1:
+            print "::: Batch mode: file %s of %s:::" % (i, len(vids))
         if not __debug__:
             try:
-                anal = Analyser(vidfn, local=silent)
-                anal.run(**run_kwargs)
+                Analyser(vid, **analyser_kwargs).run(**run_kwargs)
             except Exception as e:
-                tkMessageBox.showerror(
-                    " Error",
-                    ("The program has failed :( "
-                     "but it left you this message:\n\n%s") % e
-                )
+                print "Error while analysing %s: %s" % (vid, e)
+                continue
         else:
-            anal = Analyser(vidfn, local=silent)
-            anal.run(**run_kwargs)
+            Analyser(vid, **analyser_kwargs).run(**run_kwargs)
+        if len(vids) > 1:
+            print ""
+
+if __name__ == "__main__":
+    if getattr(sys, 'frozen', False):
+        try:
+            main()
+        except Exception as e:
+            tkMessageBox.showerror(
+                " Error",
+                ("The program has failed :( "
+                 "but it left you this message:\n\n%s") % e
+            )
+    else:
+        main()
