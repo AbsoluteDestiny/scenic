@@ -1,15 +1,13 @@
-"""Scenic.
+"""Scenic. Scene colour and motion analysis for video files.
+Pass in a file or a directory of files for analysis.
 
 Usage:
   scenic.py [options]
-  scenic.py -f FILE [options]
-  scenic.py -b DIR [options]
+  scenic.py <FILE_OR_DIRECTORY> [options]
   scenic.py (-h | --help)
   scenic.py --version
 
 Options:
-  -f FILE       Analyse a specific file.
-  -b DIR        Analyse all valid files in a folder.
   --silent      Silent mode.
   -h --help     Show this screen.
   --version     Show version.
@@ -481,21 +479,20 @@ if __name__ == "__main__":
                 pass
         sys.stdout = Consume()
 
-    vidfn = arguments.get("-f")
-    viddir = arguments.get("-b")
+    vpath = arguments.get("<FILE_OR_DIRECTORY>")
     run_kwargs = {
         "xml": not arguments.get("--no-xml"),
         "popups": not arguments.get("--no-popups")
     }
 
-    if vidfn or viddir:
+    if vpath:
         vids = []
-        if viddir and os.path.isdir(viddir):
-            for fn in os.listdir(viddir):
+        if os.path.isdir(vpath):
+            for fn in os.listdir(vpath):
                 if os.path.splitext(fn)[-1] in valid_filetypes:
-                    vids.append(os.path.join(viddir, fn))
+                    vids.append(os.path.join(vpath, fn))
         else:
-            vids = [vidfn]
+            vids = [vpath]
         for vid in vids:
             if not __debug__:
                 try:
