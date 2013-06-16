@@ -1,9 +1,26 @@
+"""Scenic.
+
+Usage:
+  scenic.py
+  scenic.py -f FILE
+  scenic.py -b DIR
+  scenic.py (-h | --help)
+  scenic.py --version
+
+Options:
+  -f FILE       Analyse a specific file.
+  -b DIR        Analyse all valid files in a folder.
+  -h --help     Show this screen.
+  --version     Show version.
+
+"""
 import sys
 import os
 
 if getattr(sys, 'frozen', False):
     # we are running in a |PyInstaller| bundle
     basedir = sys._MEIPASS
+    __doc__ = __doc__.replace(".py", ".exe")
 else:
     # we are running in a normal Python environment
     basedir = os.path.dirname(__file__)
@@ -21,11 +38,13 @@ import Tkinter
 import tkMessageBox
 import tkFileDialog
 
+#3rd party tools
 import numpy
 import scipy.misc
 import progressbar as pb
 import face
 from jinja2 import Template
+from docopt import docopt
 
 from avisynth.pyavs import AvsClip
 from avisynth import avisynth
@@ -43,6 +62,23 @@ buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
 ctypes.windll.shell32.SHGetFolderPathW(0, 5, 0, 0, buf)
 my_documents = buf.value
 ctypes.windll.kernel32.SetConsoleTitleA(app_name)
+
+valid_filetypes = [
+    ".avi",
+    ".avs",
+    ".dv",
+    ".flv",
+    ".m2v",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpg",
+    ".ogv",
+    ".vob",
+    ".webm",
+    ".wmv",
+]
 
 
 def takespread(sequence, num):
@@ -95,20 +131,21 @@ class Analyser(object):
               a.run()
        """
 
-    def __init__(self, vidpath):
+    def __init__(self, vidpath, local=False):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
+        self.local = local
         self.rpath = os.path.realpath(os.path.join(basedir, "resources"))
-        self.vidfn = os.path.split(vidfn)[1]
+        self.vidfn = os.path.split(vidpath)[1]
         self.vidname = os.path.splitext(self.vidfn)[0]
-        self.vidroot = os.path.split(vidfn)[0]
+        self.vidroot = os.path.split(vidpath)[0]
         self.picpath = os.path.join(self.vidroot, "Scenes_%s" % self.vidname)
         self.htmlpath = os.path.join(self.vidroot, "%s.html" % self.vidname)
         self.vid_info = {}
         self.source = self.open_video()
 
-        print "Processing video %s" % (os.path.split(vidfn)[-1])
+        print "Processing video %s" % (self.vidfn)
 
         self.scenes = []  # A list of (start, end) frames
         self.times = {}  # A dictionary of frame: time in seconds
@@ -120,7 +157,7 @@ class Analyser(object):
 
         if not os.path.exists(self.picpath):
             os.mkdir(self.picpath)
-        if os.path.exists(self.htmlpath):
+        if os.path.exists(self.htmlpath) and not self.local:
             msg = ("Scene indexes for this video (%s) alredy exist."
                    "Continuing will overwrite them."
                    "Do you want to continue?") % self.vidfn
@@ -406,7 +443,7 @@ class Analyser(object):
         Only tested with Premiere CS6 currently."""
         if not self.img_data:
             return
-        xml = make_xml(vidfn, self.img_data)
+        xml = make_xml(self.vidpath, self.img_data)
         xmlfile = os.path.join(self.vidroot, "%s.xml" % self.vidname)
         with open(xmlfile, "w") as f:
             f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
@@ -429,36 +466,49 @@ if __name__ == "__main__":
     icon = os.path.realpath(os.path.join(basedir, "resources", "scenic.ico"))
     root.wm_iconbitmap(icon)
 
-    # define options for opening or saving a file
-    foptions = {}
-    foptions['filetypes'] = [('all files', '.*'),
-                             ('video files', "*.avi"),
-                             ('video files', "*.avs"),
-                             ('video files', "*.dv"),
-                             ('video files', "*.flv"),
-                             ('video files', "*.m2v"),
-                             ('video files', "*.m4v"),
-                             ('video files', "*.mkv"),
-                             ('video files', "*.mov"),
-                             ('video files', "*.mp4"),
-                             ('video files', "*.mpg"),
-                             ('video files', "*.ogv"),
-                             ('video files', "*.vob"),
-                             ('video files', "*.webm"),
-                             ('video files', "*.wmv")]
-    foptions['title'] = 'Choose a video file to analyse...'
-    foptions['initialdir'] = my_documents
-    vidfn = tkFileDialog.askopenfilename(**foptions)
-    if not __debug__:
-        try:
+    arguments = docopt(__doc__, version='Scenic %s' % version_string)
+
+    vidfn = arguments.get("-f")
+    viddir = arguments.get("-b")
+
+    if vidfn or viddir:
+        vids = []
+        if viddir and os.path.isdir(viddir):
+            for fn in os.listdir(viddir):
+                if os.path.splitext(fn)[-1] in valid_filetypes:
+                    vids.append(os.path.join(viddir, fn))
+        else:
+            vids = [vidfn]
+        for vid in vids:
+            if not __debug__:
+                try:
+                    Analyser(vid, local=True).run()
+                except Exception as e:
+                    print "Error while analysing %s: %s" % (vid, e)
+                    continue
+            else:
+                Analyser(vid, local=True).run()
+    else:
+        # define options for opening a vid file
+        foptions = {}
+        foptions['filetypes'] = [('all files', '.*')]
+        for ext in valid_filetypes:
+            match = ('video files', "*%s" % ext)
+            foptions['filetypes'].append(match)
+        foptions['title'] = 'Choose a video file to analyse...'
+        foptions['initialdir'] = my_documents
+        vidfn = tkFileDialog.askopenfilename(**foptions)
+
+        if not __debug__:
+            try:
+                anal = Analyser(vidfn)
+                anal.run()
+            except Exception as e:
+                tkMessageBox.showerror(
+                    " Error",
+                    ("The program has failed :( "
+                     "but it left you this message:\n\n%s") % e
+                )
+        else:
             anal = Analyser(vidfn)
             anal.run()
-        except Exception as e:
-            tkMessageBox.showerror(
-                " Error",
-                ("The program has failed :( "
-                 "but it left you this message:\n\n%s") % e
-            )
-    else:
-        anal = Analyser(vidfn)
-        anal.run()

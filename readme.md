@@ -12,6 +12,7 @@ Dependencies
 * scipy
 * jinja2
 * webcolours
+* docopt
 * [python-progressbar](https://code.google.com/p/python-progressbar/)
 * [python-colormath](https://code.google.com/p/python-colormath/)
 
