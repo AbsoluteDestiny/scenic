@@ -10,7 +10,6 @@ else:
 
 import ctypes
 import ctypes.wintypes
-import functools
 import shutil
 import webbrowser
 from collections import defaultdict
