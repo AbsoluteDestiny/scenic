@@ -56,13 +56,16 @@ from xmlgen import make_xml
 
 
 version_string = ""
+frozen_version = os.path.join(basedir, "frozen_version.txt")
 try:
-    if not getattr(sys, 'frozen', False):
-        version_string = " v%s" % check_output(['git', 'describe'])
+    if getattr(sys, 'frozen', False):
+        version_string = open(frozen_version, "r").read().strip()
+    else:
+        version_string = "%s" % check_output(['git', 'describe'])
 except:
     pass
 
-app_name = "Scenic%s: Movie Scene Detection and Analysis" % version_string
+app_name = "Scenic %s: Movie Scene Detection and Analysis" % version_string
 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
 ctypes.windll.shell32.SHGetFolderPathW(0, 5, 0, 0, buf)
 my_documents = buf.value
@@ -537,7 +540,7 @@ def main():
     icon = os.path.realpath(os.path.join(basedir, "resources", "scenic.ico"))
     root.wm_iconbitmap(icon)
 
-    arguments = docopt(__doc__, version='Scenic %s' % version_string)
+    arguments = docopt(__doc__, version='%s' % version_string)
 
     silent = arguments.get("--silent")
     if silent:
@@ -560,10 +563,12 @@ def main():
         "popups": not arguments.get("--no-popups"),
     }
 
-    if os.path.isdir(vpath):
+    if not vpath:
+        raise Exception("No vid supplied.")
+    elif os.path.isdir(vpath):
         vids = get_valid_files(vpath)
     elif not os.path.isfile(vpath):
-        raise Exception("%s is not a valid path or video file." % vpath)
+        raise Exception("'%s' is not a valid path or video file." % vpath)
     else:
         vids = [vpath]
 

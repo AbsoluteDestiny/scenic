@@ -6,3 +6,4 @@
 *.js
 /build
 /dist
+frozen_version.txt
