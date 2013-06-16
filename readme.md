@@ -3,7 +3,7 @@ Scenic: Video Scene Detection and Analysis
 
 A windows tool for categorising video files by scene and tagging each scene by colour, motion and the existence of faces. Written in python using avisynth (for video reading), SCXvid for scene change detection, mvtools2 for motion detection, PIL (for image quantization) and OpenCV (for face detection).
 
-Dependancies
+Dependencies
 ------------
 
 * PIL
