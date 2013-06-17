@@ -68,7 +68,7 @@
             {% for vector in all_vectors %}
                 {% if vector in used_vectors %}
                     <a href="#">
-                        <li id="{{vector}}" title="{{icon_key[vector]}}" class="filter unselected tooltip mfilter" style="background-image: url('{{dir}}/icons/{{vector}}.png');"></li>
+                        <li id="{{vector}}" title="{{icon_key[vector]}}" class="filter unselected tooltip {% if "face" in vector %}ffilter{% else %}mfilter{% endif %}" style="background-image: url('{{dir}}/icons/{{vector}}.png');"></li>
                     </a>
                 {% else %}
                     <li class="unfilter"></li>
