@@ -7,11 +7,21 @@ fvpath = "frozen_version.txt"
 with open(fvpath, "w") as ver:
   print >> ver, check_output(['git', 'describe']).strip()
 
+#Exclude big modules
+big = [
+  '_ssl',
+  'doctest',
+  'pdb',
+  'inspect',
+]
+
 a = Analysis(['scenic.py'],
              pathex=['C:\\Users\\ian\\Documents\\repos\\scenic'],
              hiddenimports=["numpy"],
+             excludes=big,
              hookspath=None,
              runtime_hooks=None)
+
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts + [('O','','OPTION')],
