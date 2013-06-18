@@ -2,8 +2,6 @@ import os
 import xml.etree.cElementTree as ET
 import re
 import uuid
-import urlparse
-import urllib
 
 from mediainfo.MediaInfoDLL import *
 MI = MediaInfo()
@@ -19,7 +17,8 @@ subclip_counter = 0
 
 
 def path2url(path):
-    return urlparse.urljoin('file:', urllib.pathname2url(path))
+    folder, fn = os.path.split(path)
+    return "file://localhost/%s" % path.replace(":", "%3A").replace("\\", "/")
 
 
 def batch_node(items, parent):
@@ -74,8 +73,7 @@ def make_clip_xml(fn, parent, finfo, inframe=None, outframe=None, name=None):
     tb = ET.SubElement(rate, "timebase")
     tb.text = finfo["timebase"]
 
-    pathurl = urllib.quote(urllib.pathname2url(fn))
-    pathurl = pathurl.replace("///", "file://localhost/")
+    pathurl = path2url(fn)
     subitems = [
         ("name", name or os.path.split(fn)[-1]),
         ("pathurl", pathurl),
