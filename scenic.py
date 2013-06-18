@@ -367,7 +367,7 @@ class Analyser(object):
         self.all_colours = set()
 
         with AvisynthHelper(script) as clip:
-            widgets = ['(2/2) Scene Analysis: ',
+            widgets = ['(2/2) Scene Analysis:  ',
                        pb.Percentage(),
                        ' ',
                        pb.Bar(marker=pb.RotatingMarker()),
@@ -380,15 +380,9 @@ class Analyser(object):
                 pbar.update(n)
                 images = []
 
-                for i, frame in enumerate(takespread(range(start, end + 1), 5)):
+                for i, frame in enumerate(takespread(range(start, end + 1), 4)):
                     npa = get_numpy(clip, frame)
                     images.append(npa)
-                for i, npa in enumerate(takespread(images, 3)):
-                    # Quantize the image, find the most common colours
-                    for c in most_frequent_colours(npa, top=5):
-                        colour = get_colour_name(c[:3])
-                        self.colours[start].add(colour)
-                        self.all_colours.add(colour)
                     # Facial recognition
                     if "has_face" not in self.vectors[start]:
                         # Copy the image for facial analysis
@@ -397,6 +391,11 @@ class Analyser(object):
                         if face.detect(new):
                             self.vectors[start].append("has_face")
                             self.all_vectors.add("has_face")
+                    # Quantize the image, find the most common colours
+                    for c in most_frequent_colours(npa, top=5):
+                        colour = get_colour_name(c[:3])
+                        self.colours[start].add(colour)
+                        self.all_colours.add(colour)
                 # Generate and save the filmstrip
                 stacked = numpy.concatenate(images, axis=0)
                 img_path = self.get_scene_img_path(start, end)
