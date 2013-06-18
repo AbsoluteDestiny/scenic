@@ -232,10 +232,10 @@ class Analyser(object):
             'LoadPlugin("%(rpath)s\\mvtools2.dll")'
             '%(source)s'
             'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
-            'ConvertToYUY2()'
+            'ConvertToYV12()'
             'SCXvid("%(keylog)s")'
-            'vectors = MSuper().MAnalyse(isb = false)'
-            'MDepan(vectors, log="%(mvlog)s", range=1)'
+            'vectors = MSuper().MAnalyse()'
+            'MDepan(vectors, log="%(mvlog)s")'
         ) % {"rpath": self.rpath,
             "ppath": self.picpath,
             "vidfn": self.vidfn,
