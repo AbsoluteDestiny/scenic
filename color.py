@@ -39,15 +39,14 @@ for key, bits in kelly_colours.items():
     bits[1] = RGBColor(*rgb).convert_to("lab")
 
 
-def most_frequent_colours(ar, top=3):
+def most_frequent_colours(image, top=3):
     """Find the most common colours in a numpy array.
     Quantization done with PIL. I tried the k-means method in scipy
     but it was slower and not necessarily better"""
-    image = Image.fromarray(numpy.uint8(ar))
     # image = image.resize((100, 100))
-    result = image.convert("RGB").convert('P',
-                                          palette=Image.ADAPTIVE,
-                                          colors=top)
+    result = image.convert('P',
+                           palette=Image.ADAPTIVE,
+                           colors=top)
     result.putalpha(0)
     colors = [x[1] for x in result.getcolors(image.size[0] * image.size[1])]
     return colors

@@ -109,9 +109,9 @@ def get_numpy(avs, frame):
         # Get pixel data into numpy array. It comes out bottom left to top right.
         arrnew = numpy.array(data, dtype=numpy.uint8)
         arrnew = numpy.flipud(arrnew)  # Reverse the data so it's ARGBARGB...
-        arrnew = arrnew.reshape(-1, 4)  # Array of [[A, R, G, B], [A, R, G, B]...]
-        arrnew = numpy.roll(arrnew, -1)  # Array of [[R, G, B, A]...]
-        arrnew = arrnew.reshape(avs.Height, avs.bmih.biWidth, 4)
+        arrnew = arrnew.reshape(-1, 4)  # Array of [[A, R, G, B], ...]
+        arrnew = numpy.delete(arrnew, 0, 1)  # Remove the alpha channels
+        arrnew = arrnew.reshape(avs.Height, avs.bmih.biWidth, 3)
         arrnew = numpy.fliplr(arrnew)
         return arrnew
 
@@ -391,15 +391,16 @@ class Analyser(object):
                         if face.detect(new):
                             self.vectors[start].append("has_face")
                             self.all_vectors.add("has_face")
-                    # Quantize the image, find the most common colours
-                    for c in most_frequent_colours(npa, top=5):
-                        colour = get_colour_name(c[:3])
-                        self.colours[start].add(colour)
-                        self.all_colours.add(colour)
                 # Generate and save the filmstrip
                 stacked = numpy.concatenate(images, axis=0)
                 img_path = self.get_scene_img_path(start, end)
-                Image.fromarray(stacked).save(img_path)
+                img = Image.fromarray(stacked)
+                img.save(img_path)
+                # Quantize the image, find the most common colours
+                for c in most_frequent_colours(img, top=5):
+                    colour = get_colour_name(c[:3])
+                    self.colours[start].add(colour)
+                    self.all_colours.add(colour)
                 pbar.update(n)
             pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
