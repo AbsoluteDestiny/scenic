@@ -9,7 +9,6 @@ Dependencies
 * PIL
 * OpenCV
 * numpy
-* scipy
 * jinja2
 * webcolours
 * docopt

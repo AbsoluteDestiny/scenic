@@ -43,9 +43,9 @@ import tkFileDialog
 
 #3rd party tools
 import numpy
-import scipy.misc
 import progressbar as pb
 import face
+from PIL import Image
 from jinja2 import Template
 from docopt import docopt
 
@@ -396,7 +396,8 @@ class Analyser(object):
                 # Generate and save the filmstrip
                 stacked = numpy.concatenate(images, axis=0)
                 img_path = self.get_scene_img_path(start, end)
-                scipy.misc.imsave(img_path, stacked)
+                Image.fromarray(stacked).save(img_path)
+                pbar.update(n)
             pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
         self.img_data = self.get_img_data()
