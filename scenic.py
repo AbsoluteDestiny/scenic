@@ -319,8 +319,11 @@ class Analyser(object):
         keyframes = [0]
         endframes = []
         with open(fn, "r") as log:
-            for i, line in enumerate(log, -2):
-                if line.startswith("i") and (i - keyframes[-1]) > 10:
+            # The log file starts with 3 unneeded lines
+            for i, line in enumerate(log.readlines()[3:]):
+                # Minimum scene length in frames
+                min_slength = 10
+                if line.startswith("i") and (i - keyframes[-1]) > min_slength:
                     keyframes.append(i)
                     endframes.append(i - 1)
         if not endframes:
