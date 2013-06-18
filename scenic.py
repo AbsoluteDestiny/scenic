@@ -328,8 +328,12 @@ class Analyser(object):
                     endframes.append(i - 1)
         if not endframes:
             raise Exception("Error: video file only had once scene :(")
+        # Make sure we add the last scene
+        if endframes[-1] != self.vid_info["framecount"]:
+            keyframes.append(endframes[-1] + 1)
+            endframes.append(self.vid_info["framecount"])
         self.scenes = zip(keyframes, endframes)
-        self.scenes.append((self.scenes[-1][-1], self.vid_info["framecount"]))
+
         for scene in self.scenes:
             for frame in scene:
                 fps_den = self.vid_info["fps_den"]
