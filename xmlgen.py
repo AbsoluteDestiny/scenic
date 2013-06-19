@@ -110,7 +110,7 @@ def make_clip_xml(fn, parent, finfo, inframe=None, outframe=None, name=None):
 
     # Audio Channels
     audio = ET.SubElement(media, "audio")
-    for channel in range(2):
+    for channel in range(finfo["achans"]):
         atrack = ET.SubElement(audio, "track")
         subclip_counter += 1
         acitem = ET.SubElement(atrack,
@@ -123,7 +123,7 @@ def make_clip_xml(fn, parent, finfo, inframe=None, outframe=None, name=None):
         name.text = name or name or os.path.split(fn)[-1]
         ET.SubElement(acitem, "file", id="file-%i" % clip_counter)
         strack = ET.SubElement(acitem, "sourcetrack")
-        subitems = [('mediatrack', "audio"), ("trackindex", str(channel))]
+        subitems = [('mediatrack', "audio"), ("trackindex", str(channel + 1))]
         batch_node(subitems, strack)
 
     return clip
@@ -144,6 +144,7 @@ def make_xml(fn, scenes):
         "height": MI.Get(Stream.Video, 0, u"Height"),
         "adepth": MI.Get(Stream.Audio, 0, u"Resolution"),
         "asamrate": MI.Get(Stream.Audio, 0, u"SamplingRate"),
+        "achans": int(MI.Get(Stream.Audio, 0, u"Channels")),
     }
 
     root = ET.Element("xmeml", version="4")
