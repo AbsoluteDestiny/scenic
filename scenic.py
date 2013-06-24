@@ -9,9 +9,16 @@ Usage:
 Options:
   --skip        Skip file if .html file exists.
   --overwrite   Always overwrite any existing output files.
+  --frames=N    Number of frames to sample per scene. [default: 4]
+  --minscene=N  Smallest allowed scene length in frames. [default: 10]
+  --faces=N     Process 1 in N samples for face detection. [default: 3]
+  --colours=N   Number of colours to detect per scene. [default: 6]
   --silent      Silent mode. Use --skip or --overwrite to surpress dialogs.
-  --no-popups   Do not open generated html in the web browser
-  --no-xml      Do not generate the FCP .xml file
+  --no-colours  Do not tag scenes by colour.
+  --no-motion   Disable motion Detection.
+  --no-face     Disable scene face recognition.
+  --no-popups   Do not open generated html in the web browser.
+  --no-xml      Do not generate the FCP .xml file.
   --version     Show version.
   -h --help     Show this screen.
 
@@ -147,10 +154,19 @@ class Analyser(object):
               a.run()
        """
 
-    def __init__(self, vidpath, skip=False, overwrite=False):
+    def __init__(self, vidpath, skip=False, overwrite=False, frames=4,
+                 min_slength=10, faceprec=3, num_colours=6, nocol=False,
+                 nomo=False, noface=False):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
+        self.samplesize = frames
+        self.min_slength = min_slength
+        self.num_colours = num_colours  # Number of colours to detect
+        self.faceprec = faceprec  # Proces 1 in N frames for facial recognition
+        self.nocol = nocol  # Disables colour matching
+        self.nomo = nomo    # Disables motion analysis
+        self.noface = noface  # Disables face recognition
         self.rpath = os.path.realpath(os.path.join(basedir, "resources"))
         self.vidfn = os.path.split(vidpath)[1]
         self.vidname = os.path.splitext(self.vidfn)[0]
@@ -228,20 +244,24 @@ class Analyser(object):
         keylog = os.path.join(self.picpath, "keyframes.log")
         mvlog = os.path.join(self.picpath, "vectors.log")
         script = (
-            'LoadPlugin("%(rpath)s\\SCXvid.dll")'
-            'LoadPlugin("%(rpath)s\\mvtools2.dll")'
+            'LoadPlugin("%(rpath)s\\SCXvid.dll")\n'
+            'LoadPlugin("%(rpath)s\\mvtools2.dll")\n'
             '%(source)s'
-            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
-            'ConvertToYV12()'
-            'SCXvid("%(keylog)s")'
-            'vectors = MSuper().MAnalyse()'
-            'MDepan(vectors, log="%(mvlog)s")'
-        ) % {"rpath": self.rpath,
-            "ppath": self.picpath,
-            "vidfn": self.vidfn,
-            "source": self.source,
-            "keylog": keylog,
-            "mvlog": mvlog}
+            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)\n'
+            'ConvertToYV12()\n'
+            'SCXvid("%(keylog)s")\n'
+            )
+        if not self.nomo:
+            script += (
+                'vectors = MSuper().MAnalyse()\n'
+                'MDepan(vectors, log="%(mvlog)s")'
+            )
+        script = script % {"rpath": self.rpath,
+                           "ppath": self.picpath,
+                           "vidfn": self.vidfn,
+                           "source": self.source,
+                           "keylog": keylog,
+                           "mvlog": mvlog}
 
         with AvisynthHelper(script) as clip:
             # Store information about the clip for later
@@ -262,11 +282,13 @@ class Analyser(object):
 
         self.scenes = self.read_scenes(keylog)
         vdata = []
-        with open(mvlog, "r") as mv:
-            vdata = mv.readlines()
-        self.all_vectors, self.vectors = self.read_vectors(self.scenes, vdata)
+        if not self.nomo:
+            with open(mvlog, "r") as mv:
+                vdata = mv.readlines()
+                self.all_vectors, self.vectors = self.read_vectors(self.scenes,
+                                                                   vdata)
 
-        return self.scenes, self.vectors
+        return
 
     def read_vectors(self, scenes, vdata):
         """Analyse MDepan's output per scene.
@@ -322,8 +344,8 @@ class Analyser(object):
             # The log file starts with 3 unneeded lines
             for i, line in enumerate(log.readlines()[3:]):
                 # Minimum scene length in frames
-                min_slength = 10
-                if line.startswith("i") and (i - keyframes[-1]) > min_slength:
+                slength = (i - keyframes[-1])
+                if line.startswith("i") and slength >= self.min_slength:
                     keyframes.append(i)
                     endframes.append(i - 1)
         if not endframes:
@@ -379,10 +401,15 @@ class Analyser(object):
                 start, end = scene
                 pbar.update(n)
                 images = []
-
-                for i, frame in enumerate(takespread(range(start, end + 1), 4)):
+                sample = takespread(range(start, end + 1), self.samplesize)
+                for i, frame in enumerate(sample):
                     npa = get_numpy(clip, frame)
                     images.append(npa)
+
+                    # Should we skip facial recognition?
+                    if self.noface or i % self.faceprec:
+                        continue
+
                     # Facial recognition
                     if "has_face" not in self.vectors[start]:
                         # Copy the image for facial analysis
@@ -396,11 +423,12 @@ class Analyser(object):
                 img_path = self.get_scene_img_path(start, end)
                 img = Image.fromarray(stacked)
                 img.save(img_path)
-                # Quantize the image, find the most common colours
-                for c in most_frequent_colours(img, top=5):
-                    colour = get_colour_name(c[:3])
-                    self.colours[start].add(colour)
-                    self.all_colours.add(colour)
+                if not self.nocol:
+                    # Quantize the image, find the most common colours
+                    for c in most_frequent_colours(img, top=self.num_colours):
+                        colour = get_colour_name(c[:3])
+                        self.colours[start].add(colour)
+                        self.all_colours.add(colour)
                 pbar.update(n)
             pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
@@ -420,6 +448,9 @@ class Analyser(object):
             ts = "%s - %s" % (self.get_timestamp(start),
                               self.get_timestamp(end))
             colours = [kelly_colours[c][0] for c in self.colours[start]]
+            title = "Scene %i, frames %i to %i,  %s" % (i, start, end, ts)
+            if not self.nocol:
+                title += " with colours %s" % (", ".join(colours))
             data.append({
                 "i": i,
                 "filename": fn,
@@ -430,8 +461,7 @@ class Analyser(object):
                 "end": end,
                 "ts": ts,
                 "size": (self.vid_info["width"], self.vid_info["height"]),
-                "title": "Scene %i, frames %i to %i,  %s with colours %s" % (i,
-                    start, end, ts, ", ".join(colours)),
+                "title": title,
             })
         return data
 
@@ -459,6 +489,8 @@ class Analyser(object):
             for colour, items in sort_colours:
                 name = items[0]
                 k_colours.append((name, colour, colour in self.all_colours))
+            if self.nocol:
+                k_colours = []
 
             options = {
                 "img_data": self.img_data,
@@ -561,10 +593,37 @@ def main():
     # Get the vid or vids to process
     vpath = arguments.get("<PATH>") or ask_for_file()
 
+    frames = arguments.get("--frames").strip()
+    if frames.isdigit() == False or int(frames) < 1:
+        raise Exception("--frames must be an integer >= 1")
+    frames = int(frames)
+
+    min_slength = arguments.get("--minscene").strip()
+    if min_slength.isdigit() == False or int(min_slength) < frames:
+        raise Exception("--minscene must be an integer that is >= --frames")
+    min_slength = int(min_slength)
+
+    faceprec = arguments.get("--faces").strip()
+    if faceprec.isdigit() == False or int(faceprec) > frames:
+        raise Exception("--minscene must be an integer that is <= --frames")
+    faceprec = int(faceprec)
+
+    colours = arguments.get("--colours").strip()
+    if colours.isdigit() == False or int(colours) < 1:
+        raise Exception("--colours must be an integer >= 1")
+    colours = int(colours)
+
     # Set up options for running the analyser
     analyser_kwargs = {
         "skip": arguments.get("--skip"),
         "overwrite": arguments.get("--overwrite"),
+        "nocol": arguments.get("--no-colours"),
+        "nomo": arguments.get("--no-motion"),
+        "noface": arguments.get("--no-face"),
+        "frames": frames,
+        "min_slength": min_slength,
+        "faceprec": faceprec,
+        "num_colours": colours,
     }
     run_kwargs = {
         "xml": not arguments.get("--no-xml"),
