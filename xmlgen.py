@@ -109,22 +109,24 @@ def make_clip_xml(fn, parent, finfo, inframe=None, outframe=None, name=None):
     batch_node(subitems, schar)
 
     # Audio Channels
-    audio = ET.SubElement(media, "audio")
-    for channel in range(finfo["achans"]):
-        atrack = ET.SubElement(audio, "track")
-        subclip_counter += 1
-        acitem = ET.SubElement(atrack,
-                               "clipitem",
-                               id="clipitem-%s" % subclip_counter,
-                               frameBlend="FALSE")
-        masterc = ET.SubElement(acitem, "masterclip")
-        masterc.text = mclip_id
-        name = ET.SubElement(acitem, "name")
-        name.text = name or name or os.path.split(fn)[-1]
-        ET.SubElement(acitem, "file", id="file-%i" % clip_counter)
-        strack = ET.SubElement(acitem, "sourcetrack")
-        subitems = [('mediatrack', "audio"), ("trackindex", str(channel + 1))]
-        batch_node(subitems, strack)
+    if finfo["achans"] and finfo["achans"].isdigit():
+        audio = ET.SubElement(media, "audio")
+        for channel in range(int(finfo["achans"])):
+            atrack = ET.SubElement(audio, "track")
+            subclip_counter += 1
+            acitem = ET.SubElement(atrack,
+                                   "clipitem",
+                                   id="clipitem-%s" % subclip_counter,
+                                   frameBlend="FALSE")
+            masterc = ET.SubElement(acitem, "masterclip")
+            masterc.text = mclip_id
+            name = ET.SubElement(acitem, "name")
+            name.text = name or name or os.path.split(fn)[-1]
+            ET.SubElement(acitem, "file", id="file-%i" % clip_counter)
+            strack = ET.SubElement(acitem, "sourcetrack")
+            subitems = [('mediatrack', "audio"),
+                        ("trackindex", str(channel + 1))]
+            batch_node(subitems, strack)
 
     return clip
 
@@ -144,7 +146,7 @@ def make_xml(fn, scenes):
         "height": MI.Get(Stream.Video, 0, u"Height"),
         "adepth": MI.Get(Stream.Audio, 0, u"Resolution"),
         "asamrate": MI.Get(Stream.Audio, 0, u"SamplingRate"),
-        "achans": int(MI.Get(Stream.Audio, 0, u"Channels")),
+        "achans": MI.Get(Stream.Audio, 0, u"Channels"),
     }
 
     root = ET.Element("xmeml", version="4")
