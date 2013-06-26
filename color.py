@@ -55,6 +55,9 @@ def closest_colour(requested_colour):
     """Find the colour in kelly_colours that is closest to this one.
     requested_colour is an RGB tuple."""
     rlab = RGBColor(*requested_colour).convert_to("lab")
+    if (30 < rlab.lab_l < 70) and abs(rlab.lab_a) + abs(rlab.lab_b) == 0:
+        # This is a greyscale colour
+        return "#817066"
     better_colours = {}
     for key, bits in kelly_colours.items():
         lab_diff = rlab.delta_e(bits[1])
