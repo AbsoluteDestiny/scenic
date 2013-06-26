@@ -42,7 +42,7 @@ from collections import defaultdict
 from functools import wraps
 from math import ceil
 from subprocess import check_output
-from multiprocessing.pool import Pool
+from multiprocessing import Process, Queue, cpu_count
 
 # GUI
 import Tkinter
@@ -97,10 +97,14 @@ valid_filetypes = [
 ]
 
 
-def pool_work(inputs):
-    foo = inputs[0]
-    args = inputs[1]
-    return foo.process_images(*args)
+def mp_image_process(script, input, output):
+    """With a script string and two multiprocessing
+    queues, will allow batch avs frame getting
+    operations spread across many cpus!"""
+    with AvisynthHelper(script) as clip:
+        for foo, start, end in iter(input.get, 'STOP'):
+            result = foo.process_images(clip, start, end)
+            output.put(result)
 
 
 def takespread(sequence, num):
@@ -386,6 +390,11 @@ class Analyser(object):
         2. Look for faces
         3. Writes the jpeg filmstrips
         """
+        script = (
+            '%(source)s'
+            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
+        ) % {"source": self.source}
+
         self.img_data = []
         self.colours = defaultdict(set)
         self.all_colours = set()
@@ -398,10 +407,23 @@ class Analyser(object):
                    pb.ETA()]
         pbar = pb.ProgressBar(widgets=widgets,
                               maxval=len(self.scenes)).start()
-        pool = Pool()
-        out = pool.imap_unordered(pool_work, ((self, (x[0], x[1])) for x in self.scenes))
-        for i, results in enumerate(out):
-            start, has_face, colours = results
+
+        # Create queues
+        task_queue = Queue()
+        done_queue = Queue()
+
+        # Submit tasks
+        for start, end in self.scenes:
+            task_queue.put((self, start, end))
+
+        # Start worker processes
+        for i in range(cpu_count()):
+            args = (script, task_queue, done_queue)
+            Process(target=mp_image_process, args=args).start()
+
+        # Get and print results
+        for i, scene in enumerate(self.scenes):
+            start, has_face, colours = done_queue.get()
             if has_face:
                 self.vectors[start].append("has_face")
                 self.all_vectors.add("has_face")
@@ -409,49 +431,45 @@ class Analyser(object):
                 self.colours[start].add(colour)
                 self.all_colours.add(colour)
             pbar.update(i)
-        # for n, scene in enumerate(self.scenes):
-        #     start, end = scene
-        #     p.map(self.process_images)
-        #     self.process_images(clip, start, end)
+
+        # Stop the queues
+        for i in range(cpu_count()):
+            task_queue.put('STOP')
+
         pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
         self.img_data = self.get_img_data()
 
-    def process_images(self, start, end):
-        script = (
-            '%(source)s'
-            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
-        ) % {"source": self.source}
+    def process_images(self, clip, start, end):
         has_face = False
         colours = set()
-        with AvisynthHelper(script) as clip:
-            images = []
-            sample = takespread(range(start, end + 1), self.samplesize)
-            for i, frame in enumerate(sample):
-                npa = get_numpy(clip, frame)
-                images.append(npa)
+        images = []
+        sample = takespread(range(start, end + 1), self.samplesize)
+        for i, frame in enumerate(sample):
+            npa = get_numpy(clip, frame)
+            images.append(npa)
 
-                # Should we skip facial recognition?
-                if self.noface or i % self.faceprec:
-                    continue
+            # Should we skip facial recognition?
+            if self.noface or i % self.faceprec:
+                continue
 
-                # Facial recognition
-                if not has_face:
-                    # Copy the image for facial analysis
-                    new = numpy.empty_like(npa)
-                    new[:] = npa
-                    if face.detect(new):
-                        has_face = True
-            # Generate and save the filmstrip
-            stacked = numpy.concatenate(images, axis=0)
-            img_path = self.get_scene_img_path(start, end)
-            img = Image.fromarray(stacked)
-            img.save(img_path)
-            if not self.nocol:
-                # Quantize the image, find the most common colours
-                for c in most_frequent_colours(img, top=self.num_colours):
-                    colour = get_colour_name(c[:3])
-                    colours.add(colour)
+            # Facial recognition
+            if not has_face:
+                # Copy the image for facial analysis
+                new = numpy.empty_like(npa)
+                new[:] = npa
+                if face.detect(new):
+                    has_face = True
+        # Generate and save the filmstrip
+        stacked = numpy.concatenate(images, axis=0)
+        img_path = self.get_scene_img_path(start, end)
+        img = Image.fromarray(stacked)
+        img.save(img_path)
+        if not self.nocol:
+            # Quantize the image, find the most common colours
+            for c in most_frequent_colours(img, top=self.num_colours):
+                colour = get_colour_name(c[:3])
+                colours.add(colour)
         return (start, has_face, colours)
 
     def get_scene_img_path(self, start, end):
