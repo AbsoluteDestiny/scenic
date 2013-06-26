@@ -11,8 +11,9 @@ Options:
   --overwrite   Always overwrite any existing output files.
   --frames=N    Number of frames to sample per scene. [default: 4]
   --minscene=N  Smallest allowed scene length in frames. [default: 10]
-  --faces=N     Process 1 in N samples for face detection. [default: 3]
+  --faces=N     Process 1 in N samples for face detection. [default: 1]
   --colours=N   Number of colours to detect per scene. [default: 6]
+  --cpus=N      Number of logical processors to use. Uses all by default.
   --silent      Silent mode. Use --skip or --overwrite to surpress dialogs.
   --no-colours  Do not tag scenes by colour.
   --no-motion   Disable motion Detection.
@@ -42,6 +43,7 @@ from collections import defaultdict
 from functools import wraps
 from math import ceil
 from subprocess import check_output
+from multiprocessing import Process, Queue, cpu_count
 
 # GUI
 import Tkinter
@@ -96,6 +98,16 @@ valid_filetypes = [
 ]
 
 
+def mp_image_process(script, input, output):
+    """With a script string and two multiprocessing
+    queues, will allow batch avs frame getting
+    operations spread across many cpus!"""
+    with AvisynthHelper(script) as clip:
+        for foo, start, end in iter(input.get, 'STOP'):
+            result = foo.process_images(clip, start, end)
+            output.put(result)
+
+
 def takespread(sequence, num):
     """Yield an even spread of items from a sequence"""
     if len(sequence) < num:
@@ -137,6 +149,7 @@ class AvisynthHelper(object):
         super(AvisynthHelper, self).__init__()
         self.script = script
         self.env = avisynth.avs_create_script_environment(1)
+        self.env.SetMemoryMax(8)
 
     def __enter__(self):
         self.r = self.env.Invoke("eval", avisynth.AVS_Value(self.script), 0)
@@ -155,8 +168,8 @@ class Analyser(object):
        """
 
     def __init__(self, vidpath, skip=False, overwrite=False, frames=4,
-                 min_slength=10, faceprec=3, num_colours=6, nocol=False,
-                 nomo=False, noface=False):
+                 min_slength=10, faceprec=1, num_colours=6, nocol=False,
+                 nomo=False, noface=False, cpus=0):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
@@ -175,6 +188,9 @@ class Analyser(object):
         self.htmlpath = os.path.join(self.vidroot, "%s.html" % self.vidname)
         self.vid_info = {}
         self.source = self.open_video()
+        self.cpus = cpu_count()
+        if cpus:
+            self.cpus = min(cpus, self.cpus)
 
         print "Processing video %s" % (self.vidfn)
 
@@ -378,7 +394,6 @@ class Analyser(object):
         2. Look for faces
         3. Writes the jpeg filmstrips
         """
-
         script = (
             '%(source)s'
             'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
@@ -388,51 +403,78 @@ class Analyser(object):
         self.colours = defaultdict(set)
         self.all_colours = set()
 
-        with AvisynthHelper(script) as clip:
-            widgets = ['(2/2) Scene Analysis:  ',
-                       pb.Percentage(),
-                       ' ',
-                       pb.Bar(marker=pb.RotatingMarker()),
-                       ' ',
-                       pb.ETA()]
-            pbar = pb.ProgressBar(widgets=widgets,
-                                  maxval=len(self.scenes)).start()
-            for n, scene in enumerate(self.scenes):
-                start, end = scene
-                pbar.update(n)
-                images = []
-                sample = takespread(range(start, end + 1), self.samplesize)
-                for i, frame in enumerate(sample):
-                    npa = get_numpy(clip, frame)
-                    images.append(npa)
+        widgets = ['(2/2) Scene Analysis:  ',
+                   pb.Percentage(),
+                   ' ',
+                   pb.Bar(marker=pb.RotatingMarker()),
+                   ' ',
+                   pb.ETA()]
+        pbar = pb.ProgressBar(widgets=widgets,
+                              maxval=len(self.scenes)).start()
 
-                    # Should we skip facial recognition?
-                    if self.noface or i % self.faceprec:
-                        continue
+        # Create queues
+        task_queue = Queue()
+        done_queue = Queue()
 
-                    # Facial recognition
-                    if "has_face" not in self.vectors[start]:
-                        # Copy the image for facial analysis
-                        new = numpy.empty_like(npa)
-                        new[:] = npa
-                        if face.detect(new):
-                            self.vectors[start].append("has_face")
-                            self.all_vectors.add("has_face")
-                # Generate and save the filmstrip
-                stacked = numpy.concatenate(images, axis=0)
-                img_path = self.get_scene_img_path(start, end)
-                img = Image.fromarray(stacked)
-                img.save(img_path)
-                if not self.nocol:
-                    # Quantize the image, find the most common colours
-                    for c in most_frequent_colours(img, top=self.num_colours):
-                        colour = get_colour_name(c[:3])
-                        self.colours[start].add(colour)
-                        self.all_colours.add(colour)
-                pbar.update(n)
-            pbar.finish()
+        # Submit tasks
+        for start, end in self.scenes:
+            task_queue.put((self, start, end))
+
+        # Start worker processes
+        for i in range(self.cpus):
+            args = (script, task_queue, done_queue)
+            Process(target=mp_image_process, args=args).start()
+
+        # Get and print results
+        for i, scene in enumerate(self.scenes):
+            start, has_face, colours = done_queue.get()
+            if has_face:
+                self.vectors[start].append("has_face")
+                self.all_vectors.add("has_face")
+            for colour in colours:
+                self.colours[start].add(colour)
+                self.all_colours.add(colour)
+            pbar.update(i)
+
+        # Stop the queues
+        for i in range(self.cpus):
+            task_queue.put('STOP')
+
+        pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
         self.img_data = self.get_img_data()
+
+    def process_images(self, clip, start, end):
+        has_face = False
+        colours = set()
+        images = []
+        sample = takespread(range(start, end + 1), self.samplesize)
+        for i, frame in enumerate(sample):
+            npa = get_numpy(clip, frame)
+            images.append(npa)
+
+            # Should we skip facial recognition?
+            if self.noface or i % self.faceprec:
+                continue
+
+            # Facial recognition
+            if not has_face:
+                # Copy the image for facial analysis
+                new = numpy.empty_like(npa)
+                new[:] = npa
+                if face.detect(new):
+                    has_face = True
+        # Generate and save the filmstrip
+        stacked = numpy.concatenate(images, axis=0)
+        img_path = self.get_scene_img_path(start, end)
+        img = Image.fromarray(stacked)
+        img.save(img_path)
+        if not self.nocol:
+            # Quantize the image, find the most common colours
+            for c in most_frequent_colours(img, top=self.num_colours):
+                colour = get_colour_name(c[:3])
+                colours.add(colour)
+        return (start, has_face, colours)
 
     def get_scene_img_path(self, start, end):
         return os.path.join(self.picpath, "scene_%i_%i.jpg" % (start, end))
@@ -613,6 +655,13 @@ def main():
         raise Exception("--colours must be an integer >= 1")
     colours = int(colours)
 
+    cpus = arguments.get("--cpus")
+    if cpus:
+        cpus = cpus.strip()
+        if cpus.isdigit() == False or int(cpus) < 1:
+            raise Exception("--cpus must be an integer >= 1")
+        cpus = int(cpus)
+
     # Set up options for running the analyser
     analyser_kwargs = {
         "skip": arguments.get("--skip"),
@@ -624,6 +673,7 @@ def main():
         "min_slength": min_slength,
         "faceprec": faceprec,
         "num_colours": colours,
+        "cpus": cpus,
     }
     run_kwargs = {
         "xml": not arguments.get("--no-xml"),

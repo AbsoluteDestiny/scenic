@@ -298,15 +298,15 @@ class AvsClip:
         #~ self.pBits=self.BUF()
         # Initialization complete.
         self.initialized = True
-        if __debug__:
-            print 'Avisynth clip created successfully'
+        # if __debug__:
+        #     print 'Avisynth clip created successfully'
         
     def __del__(self):
         if self.initialized:
             self.clip = None
             self.clipRaw = None
-            if __debug__:
-                print "Deleting allocated video memory..."
+            # if __debug__:
+            #     print "Deleting allocated video memory..."
             
     def _GetFrame(self, frame):
         if self.initialized:
