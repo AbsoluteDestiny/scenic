@@ -1,5 +1,4 @@
 import webcolors
-import numpy
 from PIL import Image
 from colormath.color_objects import RGBColor
 

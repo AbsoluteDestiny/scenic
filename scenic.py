@@ -11,8 +11,9 @@ Options:
   --overwrite   Always overwrite any existing output files.
   --frames=N    Number of frames to sample per scene. [default: 4]
   --minscene=N  Smallest allowed scene length in frames. [default: 10]
-  --faces=N     Process 1 in N samples for face detection. [default: 3]
+  --faces=N     Process 1 in N samples for face detection. [default: 1]
   --colours=N   Number of colours to detect per scene. [default: 6]
+  --cpus=N      Number of logical processors to use. Uses all by default.
   --silent      Silent mode. Use --skip or --overwrite to surpress dialogs.
   --no-colours  Do not tag scenes by colour.
   --no-motion   Disable motion Detection.
@@ -167,8 +168,8 @@ class Analyser(object):
        """
 
     def __init__(self, vidpath, skip=False, overwrite=False, frames=4,
-                 min_slength=10, faceprec=3, num_colours=6, nocol=False,
-                 nomo=False, noface=False):
+                 min_slength=10, faceprec=1, num_colours=6, nocol=False,
+                 nomo=False, noface=False, cpus=0):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
@@ -187,6 +188,9 @@ class Analyser(object):
         self.htmlpath = os.path.join(self.vidroot, "%s.html" % self.vidname)
         self.vid_info = {}
         self.source = self.open_video()
+        self.cpus = cpu_count()
+        if cpus:
+            self.cpus = min(cpus, self.cpus)
 
         print "Processing video %s" % (self.vidfn)
 
@@ -417,7 +421,7 @@ class Analyser(object):
             task_queue.put((self, start, end))
 
         # Start worker processes
-        for i in range(cpu_count()):
+        for i in range(self.cpus):
             args = (script, task_queue, done_queue)
             Process(target=mp_image_process, args=args).start()
 
@@ -433,7 +437,7 @@ class Analyser(object):
             pbar.update(i)
 
         # Stop the queues
-        for i in range(cpu_count()):
+        for i in range(self.cpus):
             task_queue.put('STOP')
 
         pbar.finish()
@@ -651,6 +655,13 @@ def main():
         raise Exception("--colours must be an integer >= 1")
     colours = int(colours)
 
+    cpus = arguments.get("--cpus")
+    if cpus:
+        cpus = cpus.strip()
+        if cpus.isdigit() == False or int(cpus) < 1:
+            raise Exception("--cpus must be an integer >= 1")
+        cpus = int(cpus)
+
     # Set up options for running the analyser
     analyser_kwargs = {
         "skip": arguments.get("--skip"),
@@ -662,6 +673,7 @@ def main():
         "min_slength": min_slength,
         "faceprec": faceprec,
         "num_colours": colours,
+        "cpus": cpus,
     }
     run_kwargs = {
         "xml": not arguments.get("--no-xml"),
