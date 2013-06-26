@@ -42,6 +42,7 @@ from collections import defaultdict
 from functools import wraps
 from math import ceil
 from subprocess import check_output
+from multiprocessing.pool import Pool
 
 # GUI
 import Tkinter
@@ -96,6 +97,12 @@ valid_filetypes = [
 ]
 
 
+def pool_work(inputs):
+    foo = inputs[0]
+    args = inputs[1]
+    return foo.process_images(*args)
+
+
 def takespread(sequence, num):
     """Yield an even spread of items from a sequence"""
     if len(sequence) < num:
@@ -137,6 +144,7 @@ class AvisynthHelper(object):
         super(AvisynthHelper, self).__init__()
         self.script = script
         self.env = avisynth.avs_create_script_environment(1)
+        self.env.SetMemoryMax(8)
 
     def __enter__(self):
         self.r = self.env.Invoke("eval", avisynth.AVS_Value(self.script), 0)
@@ -378,61 +386,73 @@ class Analyser(object):
         2. Look for faces
         3. Writes the jpeg filmstrips
         """
-
-        script = (
-            '%(source)s'
-            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
-        ) % {"source": self.source}
-
         self.img_data = []
         self.colours = defaultdict(set)
         self.all_colours = set()
 
-        with AvisynthHelper(script) as clip:
-            widgets = ['(2/2) Scene Analysis:  ',
-                       pb.Percentage(),
-                       ' ',
-                       pb.Bar(marker=pb.RotatingMarker()),
-                       ' ',
-                       pb.ETA()]
-            pbar = pb.ProgressBar(widgets=widgets,
-                                  maxval=len(self.scenes)).start()
-            for n, scene in enumerate(self.scenes):
-                start, end = scene
-                pbar.update(n)
-                images = []
-                sample = takespread(range(start, end + 1), self.samplesize)
-                for i, frame in enumerate(sample):
-                    npa = get_numpy(clip, frame)
-                    images.append(npa)
-
-                    # Should we skip facial recognition?
-                    if self.noface or i % self.faceprec:
-                        continue
-
-                    # Facial recognition
-                    if "has_face" not in self.vectors[start]:
-                        # Copy the image for facial analysis
-                        new = numpy.empty_like(npa)
-                        new[:] = npa
-                        if face.detect(new):
-                            self.vectors[start].append("has_face")
-                            self.all_vectors.add("has_face")
-                # Generate and save the filmstrip
-                stacked = numpy.concatenate(images, axis=0)
-                img_path = self.get_scene_img_path(start, end)
-                img = Image.fromarray(stacked)
-                img.save(img_path)
-                if not self.nocol:
-                    # Quantize the image, find the most common colours
-                    for c in most_frequent_colours(img, top=self.num_colours):
-                        colour = get_colour_name(c[:3])
-                        self.colours[start].add(colour)
-                        self.all_colours.add(colour)
-                pbar.update(n)
-            pbar.finish()
+        widgets = ['(2/2) Scene Analysis:  ',
+                   pb.Percentage(),
+                   ' ',
+                   pb.Bar(marker=pb.RotatingMarker()),
+                   ' ',
+                   pb.ETA()]
+        pbar = pb.ProgressBar(widgets=widgets,
+                              maxval=len(self.scenes)).start()
+        pool = Pool()
+        out = pool.imap_unordered(pool_work, ((self, (x[0], x[1])) for x in self.scenes))
+        for i, results in enumerate(out):
+            start, has_face, colours = results
+            if has_face:
+                self.vectors[start].append("has_face")
+                self.all_vectors.add("has_face")
+            for colour in colours:
+                self.colours[start].add(colour)
+                self.all_colours.add(colour)
+            pbar.update(i)
+        # for n, scene in enumerate(self.scenes):
+        #     start, end = scene
+        #     p.map(self.process_images)
+        #     self.process_images(clip, start, end)
+        pbar.finish()
         self.all_vectors = [x.split("_")[-1] for x in sorted(self.all_vectors)]
         self.img_data = self.get_img_data()
+
+    def process_images(self, start, end):
+        script = (
+            '%(source)s'
+            'BilinearResize(8 * int((240 * last.width/last.height) / 8), 240)'
+        ) % {"source": self.source}
+        has_face = False
+        colours = set()
+        with AvisynthHelper(script) as clip:
+            images = []
+            sample = takespread(range(start, end + 1), self.samplesize)
+            for i, frame in enumerate(sample):
+                npa = get_numpy(clip, frame)
+                images.append(npa)
+
+                # Should we skip facial recognition?
+                if self.noface or i % self.faceprec:
+                    continue
+
+                # Facial recognition
+                if not has_face:
+                    # Copy the image for facial analysis
+                    new = numpy.empty_like(npa)
+                    new[:] = npa
+                    if face.detect(new):
+                        has_face = True
+            # Generate and save the filmstrip
+            stacked = numpy.concatenate(images, axis=0)
+            img_path = self.get_scene_img_path(start, end)
+            img = Image.fromarray(stacked)
+            img.save(img_path)
+            if not self.nocol:
+                # Quantize the image, find the most common colours
+                for c in most_frequent_colours(img, top=self.num_colours):
+                    colour = get_colour_name(c[:3])
+                    colours.add(colour)
+        return (start, has_face, colours)
 
     def get_scene_img_path(self, start, end):
         return os.path.join(self.picpath, "scene_%i_%i.jpg" % (start, end))
