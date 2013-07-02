@@ -75,6 +75,7 @@ try:
 except:
     pass
 
+# Change the console title
 app_name = "Scenic %s: Movie Scene Detection and Analysis" % version_string
 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
 ctypes.windll.shell32.SHGetFolderPathW(0, 5, 0, 0, buf)
@@ -137,6 +138,8 @@ def get_numpy(avs, frame):
 
 
 def is_ready(func):
+    """Only process an instance function if the instance has the attr
+    ready set to something truthy."""
     @wraps(func)
     def wrapper(instance, *args, **kwds):
         if instance.ready:
@@ -174,6 +177,8 @@ class Analyser(object):
         if not vidpath:
             raise Exception("Analyser must have a vid path.")
         self.vidpath = vidpath
+        self.skip = skip  # Whether we should skip already-processed files
+        self.overwrite = overwrite  # Whether we should overwrite files
         self.samplesize = frames
         self.min_slength = min_slength
         self.num_colours = num_colours  # Number of colours to detect
@@ -187,6 +192,7 @@ class Analyser(object):
         self.vidroot = os.path.split(vidpath)[0]
         self.picpath = os.path.join(self.vidroot, "Scenes_%s" % self.vidname)
         self.htmlpath = os.path.join(self.vidroot, "%s.html" % self.vidname)
+        self.xmlpath = os.path.join(self.vidroot, "%s.xml" % self.vidname)
         self.vid_info = {}
         self.source = self.open_video()
         self.cpus = cpu_count()
@@ -204,18 +210,24 @@ class Analyser(object):
         self.img_data = []  # A list of data for html/xml generation
 
         self.ready = True  # Can be processed
+        self.check_output_files()
 
-        if not os.path.exists(self.picpath):
-            os.mkdir(self.picpath)
-        if os.path.exists(self.htmlpath):
-            msg = ("Scene indexes for this video (%s) alredy exist."
-                   "Continuing will overwrite them."
+    def check_output_files(self):
+        """Make directories if they do not exist already. Check to see if we
+        have processed this file before."""
+        check_paths = [self.htmlpath, self.picpath, self.xmlpath]
+        if any(os.path.exists(p) for p in check_paths):
+            msg = ("Scene indexes for this video already exist:\n\n'%s'\n\n"
+                   "Continuing will overwrite them. "
                    "Do you want to continue?") % self.vidfn
             title = "Existing files detected!"
-            if skip:
+            if self.skip:
                 self.ready = False
                 print "%s is already processed, skipping." % self.vidfn
-            elif overwrite or tkMessageBox.askyesno(title, msg):
+            elif self.overwrite or tkMessageBox.askyesno(title, msg):
+                # Safe to overwrite all files
+                if not os.path.exists(self.picpath):
+                    os.mkdir(self.picpath)
                 return
             else:
                 self.ready = False
@@ -391,8 +403,8 @@ class Analyser(object):
     @is_ready
     def phase_two(self):
         """This phase simlutaneously does many things:
-        1. Find the most common colours in the scene
-        2. Look for faces
+        1. Finds the most common colours in the scene
+        2. Looks for faces
         3. Writes the jpeg filmstrips
         """
         script = (
@@ -566,7 +578,7 @@ class Analyser(object):
         if not self.img_data:
             return
         xml = make_xml(self.vidpath, self.img_data)
-        xmlfile = os.path.join(self.vidroot, "%s.xml" % self.vidname)
+        xmlfile = self.xmlpath
         with open(xmlfile, "w") as f:
             f.write('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE xmeml>')
             xml.write(f)
@@ -613,16 +625,10 @@ def ask_for_file():
     return tkFileDialog.askopenfilename(**foptions)
 
 
-def main():
-    """Handle default processing for standalone and command-line usage."""
-    # Surpress TKinter main window
-    root = Tkinter.Tk()
-    root.withdraw()
-
-    #Set the icon for dialogs
-    icon = os.path.realpath(os.path.join(basedir, "resources", "scenic.ico"))
-    root.wm_iconbitmap(icon)
-
+def get_cl_args():
+    """"
+    Process the command line arguments and parse them for use.
+    """
     arguments = docopt(__doc__, version='%s' % version_string)
 
     silent = arguments.get("--silent")
@@ -680,6 +686,20 @@ def main():
         "xml": not arguments.get("--no-xml"),
         "popups": not arguments.get("--no-popups"),
     }
+    return vpath, analyser_kwargs, run_kwargs
+
+
+def main():
+    """Handle default processing for standalone and command-line usage."""
+    # Surpress TKinter main window
+    root = Tkinter.Tk()
+    root.withdraw()
+
+    #Set the icon for dialogs
+    icon = os.path.realpath(os.path.join(basedir, "resources", "scenic.ico"))
+    root.wm_iconbitmap(icon)
+
+    vpath, analyser_kwargs, run_kwargs = get_cl_args()
 
     if not vpath:
         raise Exception("No vid supplied.")
