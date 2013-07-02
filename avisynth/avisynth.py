@@ -11,7 +11,7 @@ else:
 
 dlldir = os.path.join(basedir, "resources")
 os.environ['PATH'] = ';'.join([dlldir, os.environ['PATH']])
-avidll = ctypes.windll.LoadLibrary(os.path.join(dlldir, 'avisynth.dll'))
+avidll = ctypes.windll.LoadLibrary('avisynth.dll')
 
 
 # avidll = ctypes.windll.avisynth

@@ -43,7 +43,7 @@ from collections import defaultdict
 from functools import wraps
 from math import ceil
 from subprocess import check_output
-from multiprocessing import Process, Queue, cpu_count
+from multiprocessing import Queue, cpu_count, freeze_support, active_children
 
 # GUI
 import Tkinter
@@ -62,6 +62,7 @@ from avisynth.pyavs import AvsClip
 from avisynth import avisynth
 from color import get_colour_name, most_frequent_colours, kelly_colours
 from xmlgen import make_xml
+from frozen_process import Process
 
 
 version_string = ""
@@ -704,6 +705,7 @@ def main():
             print ""
 
 if __name__ == "__main__":
+    freeze_support()
     if getattr(sys, 'frozen', False):
         try:
             main()
@@ -713,5 +715,9 @@ if __name__ == "__main__":
                 ("The program has failed :( "
                  "but it left you this message:\n\n%s") % e
             )
+        # We need to wait for all child processes otherwise
+        # --onefile mode won't work.
+        while active_children():
+            active_children()[0].join()
     else:
         main()

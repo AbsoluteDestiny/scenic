@@ -4,7 +4,7 @@
 import os
 from subprocess import check_output
 fvpath = "frozen_version.txt"
-version = check_output(['git', 'describe']).strip()
+version = check_output(['git', 'describe', '--dirty']).strip()
 with open(fvpath, "w") as ver:
   print >> ver, version
 
@@ -18,7 +18,7 @@ big = [
 
 a = Analysis(['scenic.py'],
              pathex=['C:\\Users\\ian\\Documents\\repos\\scenic'],
-             hiddenimports=["numpy"],
+             hiddenimports=["numpy", "pywintypes"],
              excludes=big,
              hookspath=None,
              runtime_hooks=None)
