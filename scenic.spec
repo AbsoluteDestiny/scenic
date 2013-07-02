@@ -4,8 +4,9 @@
 import os
 from subprocess import check_output
 fvpath = "frozen_version.txt"
+version = check_output(['git', 'describe']).strip()
 with open(fvpath, "w") as ver:
-  print >> ver, check_output(['git', 'describe']).strip()
+  print >> ver, version
 
 #Exclude big modules
 big = [
@@ -31,7 +32,7 @@ exe = EXE(pyz,
           Tree('./resources', prefix='resources'),
           Tree('./haarcascades', prefix='haarcascades'),
           Tree('./mediainfo', prefix='mediainfo'),
-          name='scenic.exe',
+          name='scenic-v%s.exe' % version,
           icon='./resources/scenic.ico',
           debug=False,
           strip=None,
