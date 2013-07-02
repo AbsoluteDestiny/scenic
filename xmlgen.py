@@ -135,9 +135,10 @@ def make_xml(fn, scenes):
     """Given a source file and a list of scene data, generate a
     Final Cut Pro xml project."""
     MI.Open(fn)
+    frate = MI.Get(Stream.Video, 0, u"FrameRate") or 30
     finfo = {
         "duration": MI.Get(Stream.Video, 0, u"FrameCount"),
-        "timebase": "%i" % round(float(MI.Get(Stream.Video, 0, u"FrameRate"))),
+        "timebase": "%i" % round(float(frate)),
         "alpha": "none",
         # "par": "square",
         # "anamporphic": "",
