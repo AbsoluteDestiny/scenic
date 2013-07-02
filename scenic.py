@@ -725,8 +725,8 @@ def main():
             print ""
 
 if __name__ == "__main__":
-    freeze_support()
     if getattr(sys, 'frozen', False):
+        freeze_support()
         try:
             main()
         except Exception as e:
