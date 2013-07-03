@@ -39,6 +39,7 @@ else:
 
 import ctypes
 import ctypes.wintypes
+import re
 import shutil
 import webbrowser
 from collections import defaultdict
@@ -600,27 +601,53 @@ class Analyser(object):
             webbrowser.open(self.htmlpath, new=2)
 
 
-def get_valid_files(path):
+def get_valid_files(vp, inner=False):
+    """
+    Given a path or list of paths, return a list of suitable file paths.
+    """
+    if not vp:
+        raise Exception("No vid supplied.")
+
+    # Deal with Tcl list from dialog box
+    if "{" in vp:
+        #split filenames string up into a proper python list
+        vp = re.findall("{.*?}|\S+", vp)
+
+        #remove any {} characters from the start and end of the file names
+        vp = [re.sub("^{|}$","",i) for i in vp]
+
+    check_me = []
+    if isinstance(vp, list):
+        for vpath in vp:
+            if os.path.isdir(vpath):
+                for fn in os.listdir(vpath):
+                    vfile = os.path.join(vpath, fn)
+                    if os.path.isfile(vfile):
+                        check_me.append(vfile)
+            elif os.path.isfile(vpath):
+                check_me.append(vpath)
+    else:
+        check_me = [vp]
+
     files = []
+    for vpath in check_me:
+        if not os.path.isfile(vpath):
+            raise Exception("'%s' is not a valid path or video file." % vpath)
+        elif os.path.splitext(vpath)[-1] in valid_filetypes:
+            files.append(vpath)
 
-    if not os.path.isdir(path):
-        return files
-
-    for fn in os.listdir(path):
-        if os.path.splitext(fn)[-1] in valid_filetypes:
-            files.append(os.path.join(path, fn))
-
-    if not files:
-        raise Exception("%s does not contain any valid vid fies." % path)
+    if (not inner) and (not files):
+        raise Exception("%s does not contain any valid vid fies." % vp)
     return files
 
 
 def ask_for_file():
-    # Present a file chooser dialog
+    """Ask the user to pick a file using a dialog, return the path"""
     foptions = {}
     foptions['initialdir'] = my_documents
-    foptions['title'] = 'Choose a video file to analyse...'
-    foptions['filetypes'] = [('all files', '.*')]
+    foptions['title'] = 'Choose video file(s) to analyse...'
+    foptions['multiple'] = True
+    foptions['filetypes'] = []
     for ext in valid_filetypes:
         match = ('video files', "*%s" % ext)
         foptions['filetypes'].append(match)
@@ -703,16 +730,7 @@ def main():
 
     vpath, analyser_kwargs, run_kwargs = get_cl_args()
 
-    if not vpath:
-        raise Exception("No vid supplied.")
-    elif isinstance(vpath, list):
-        vids = [p for p in vpath if os.path.splitext(p)[-1] in valid_filetypes]
-    elif os.path.isdir(vpath):
-        vids = get_valid_files(vpath)
-    elif not os.path.isfile(vpath):
-        raise Exception("'%s' is not a valid path or video file." % vpath)
-    else:
-        vids = [vpath]
+    vids = get_valid_files(vpath)
 
     for i, vid in enumerate(vids, 1):
         if len(vids) > 1:
