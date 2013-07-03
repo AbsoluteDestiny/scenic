@@ -2,7 +2,7 @@
 Pass in a file or a directory of files for analysis.
 
 Usage:
-  scenic.py [<PATH>] [--skip | --overwrite] [options]
+  scenic.py [--skip | --overwrite] [options] [<PATH>...]
   scenic.py (-h | --help)
   scenic.py --version
 
@@ -703,6 +703,8 @@ def main():
 
     if not vpath:
         raise Exception("No vid supplied.")
+    elif isinstance(vpath, list):
+        vids = [p for p in vpath if os.path.splitext(p)[-1] in valid_filetypes]
     elif os.path.isdir(vpath):
         vids = get_valid_files(vpath)
     elif not os.path.isfile(vpath):
