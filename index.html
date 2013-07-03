@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>Scenic by AbsoluteDestiny</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Scenic</h1>
+        <h2>A windows tool for categorising video files by scene and tagging each scene by colour, motion and the existence of faces.</h2>
+        <a href="https://github.com/AbsoluteDestiny/scenic" class="button"><small>View project on</small>GitHub</a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h1>
+<a name="scenic-video-scene-detection-and-analysis" class="anchor" href="#scenic-video-scene-detection-and-analysis"><span class="octicon octicon-link"></span></a>Scenic: Video Scene Detection and Analysis</h1>
+
+<p>A windows tool for categorising video files by scene and tagging each scene by colour, motion and the existence of faces. Written in python using avisynth (for video reading), SCXvid for scene change detection, mvtools2 for motion detection, PIL (for image quantization) and OpenCV (for face detection).</p>
+
+<h2>
+<a name="download-executable" class="anchor" href="#download-executable"><span class="octicon octicon-link"></span></a>Download Executable</h2>
+
+<p>Windows executables are available on the <a href="https://github.com/AbsoluteDestiny/scenic/releases">github releases page</a>.</p>
+
+<h2>
+<a name="command-line-arguments" class="anchor" href="#command-line-arguments"><span class="octicon octicon-link"></span></a>Command Line Arguments</h2>
+
+<pre><code>Usage:
+  scenic.py
+  scenic.py [&lt;PATH&gt;...]
+  scenic.py [--skip | --overwrite] [options] [&lt;PATH&gt;...]
+  scenic.py (-h | --help)
+  scenic.py --version
+
+Options:
+  --skip        Skip file if .html file exists.
+  --overwrite   Always overwrite any existing output files.
+  --frames=N    Number of frames to sample per scene. [default: 4]
+  --minscene=N  Smallest allowed scene length in frames. [default: 10]
+  --faces=N     Process 1 in N samples for face detection. [default: 1]
+  --colours=N   Number of colours to detect per scene. [default: 6]
+  --cpus=N      Number of logical processors to use. Uses all by default.
+  --silent      Silent mode. Use --skip or --overwrite to surpress dialogs.
+  --no-colours  Do not tag scenes by colour.
+  --no-motion   Disable motion Detection.
+  --no-face     Disable scene face recognition.
+  --no-popups   Do not open generated html in the web browser.
+  --no-xml      Do not generate the FCP .xml file.
+  --version     Show version.
+  -h --help     Show this screen.
+</code></pre>
+
+<h2>
+<a name="dependencies" class="anchor" href="#dependencies"><span class="octicon octicon-link"></span></a>Dependencies</h2>
+
+<ul>
+<li>PIL</li>
+<li>OpenCV</li>
+<li>numpy</li>
+<li>jinja2</li>
+<li>webcolours</li>
+<li>docopt</li>
+<li><a href="https://code.google.com/p/python-progressbar/">python-progressbar</a></li>
+<li><a href="https://code.google.com/p/python-colormath/">python-colormath</a></li>
+</ul><h2>
+<a name="required-3rd-party-files-and-binaries" class="anchor" href="#required-3rd-party-files-and-binaries"><span class="octicon octicon-link"></span></a>Required 3rd party files and Binaries</h2>
+
+<p>These should be copied to the /resources/ folder.</p>
+
+<ul>
+<li><a href="http://mediainfo.sourceforge.net/en">MediaInfo.dll</a></li>
+<li>avisynth.dll (from <a href="http://sourceforge.net/projects/avisynth2/files/AviSynth%202.5/">Avisynth version 2.5.8</a>)</li>
+<li>devil.dll (as included with Avisynth 2.5)</li>
+<li>msvcp60.dll (for Avisynth if not available already)</li>
+<li><a href="https://code.google.com/p/ffmpegsource/">ffms2.dll and ffindex.exe</a></li>
+<li><a href="http://unanimated.xtreemhost.com/scxvid.htm">SCXvid.dll</a></li>
+<li><a href="http://avisynth.org.ru/mvtools/mvtools2.html">mvtools2.dll</a></li>
+<li><a href="http://code.jquery.com/jquery-1.10.1.min.js">jquery</a></li>
+</ul><h2>
+<a name="building-with-pyinstaller" class="anchor" href="#building-with-pyinstaller"><span class="octicon octicon-link"></span></a>Building with PyInstaller</h2>
+
+<p>I use the following command:</p>
+
+<pre><code>python -O /path/to/pyinstaller-script.py --onefile --upx-dir=/path/to/upx/ scenic.spec
+</code></pre>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/AbsoluteDestiny/scenic/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/AbsoluteDestiny/scenic/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/AbsoluteDestiny/scenic"></a> is maintained by <a href="https://github.com/AbsoluteDestiny">AbsoluteDestiny</a>.</p>
+
+          <p>This page was generated by <a href="pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
+    </div>
+
+  
+  </body>
+</html>
