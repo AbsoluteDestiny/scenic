@@ -2,6 +2,8 @@
 Pass in a file or a directory of files for analysis.
 
 Usage:
+  scenic.py
+  scenic.py [<PATH>...]
   scenic.py [--skip | --overwrite] [options] [<PATH>...]
   scenic.py (-h | --help)
   scenic.py --version
