@@ -617,7 +617,7 @@ def get_valid_files(vp, inner=False):
         vp = re.findall("{.*?}|\S+", vp)
 
         #remove any {} characters from the start and end of the file names
-        vp = [re.sub("^{|}$","",i) for i in vp]
+        vp = [re.sub("^{|}$", "", i) for i in vp]
 
     check_me = []
     if isinstance(vp, list):
