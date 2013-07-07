@@ -227,14 +227,17 @@ class Analyser(object):
             if self.skip:
                 self.ready = False
                 print "%s is already processed, skipping." % self.vidfn
-            elif self.overwrite or tkMessageBox.askyesno(title, msg):
-                # Safe to overwrite all files
-                if not os.path.exists(self.picpath):
-                    os.mkdir(self.picpath)
                 return
+            elif self.overwrite or tkMessageBox.askyesno(title, msg):
+                pass
             else:
                 self.ready = False
                 print "Processing cancelled for %s." % self.vidfn
+                return
+        # Safe to overwrite all files
+        if not os.path.exists(self.picpath):
+            os.mkdir(self.picpath)
+        return
 
     def open_video(self):
         """Find a compatible Avisynth import method for the given file.
