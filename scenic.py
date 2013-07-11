@@ -211,8 +211,8 @@ class Analyser(object):
         self.all_vectors = set()  # A set of all possible movements
         self.all_colours = set()  # A set of all possible colours
         self.img_data = []  # A list of data for html/xml generation
+        self.ready = False
 
-        self.ready = True  # Can be processed
         self.check_output_files()
 
     def check_output_files(self):
@@ -229,7 +229,7 @@ class Analyser(object):
                 print "%s is already processed, skipping." % self.vidfn
                 return
             elif self.overwrite or tkMessageBox.askyesno(title, msg):
-                pass
+                self.ready = True
             else:
                 self.ready = False
                 print "Processing cancelled for %s." % self.vidfn
@@ -738,7 +738,7 @@ def main():
     for i, vid in enumerate(vids, 1):
         if len(vids) > 1:
             print "::: Batch mode: file %s of %s:::" % (i, len(vids))
-        if not __debug__:
+        if len(vids) > 1 and __debug__:
             try:
                 Analyser(vid, **analyser_kwargs).run(**run_kwargs)
             except Exception as e:
@@ -750,7 +750,7 @@ def main():
             print ""
 
 if __name__ == "__main__":
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, 'frozen', False) or not __debug__:
         freeze_support()
         try:
             main()
