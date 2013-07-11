@@ -246,6 +246,7 @@ class Analyser(object):
         sources = [
             'AVISource("%(vidfn)s")',
             'LoadPlugin("%(rpath)s\\ffms2.dll")\nFFVideoSource("%(vidfn)s")',
+            'Import("%(vidfn)s")',
         ]
 
         for source in sources:
